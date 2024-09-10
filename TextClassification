@@ -1,0 +1,12 @@
+1. Manual Labeling:
+a. We will need to scrape or use an API to gather youtube video titles, descriptions, captions, and tags. thankfully youtube has a Data API already. 
+b. Web scraping with libraries such as BeautifulSoup or Selenium.
+
+
+
+
+
+
+
+API KEY FOR YOUTUBE API: AIzaSyB6Wfh1a--FT3v_V1i7pigHDU3PiqLeLNo
+
