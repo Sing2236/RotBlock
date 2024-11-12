@@ -1,165 +1,81 @@
-// tested using violentmonkey script runner chrome extension
-// 
+// ==UserScript==
+// @name         YouTube Video Scraper with Basic Metadata to CSV
+// @namespace    http://tampermonkey.net/
+// @version      0.2
+// @description  Scrape video URLs, titles, and creator from YouTube and download as CSV
+// @author       You
+// @match        *://www.youtube.com/*
+// @grant        none
+// ==/UserScript==
 
 (function() {
     'use strict';
 
-    const brainRotTags = [
-        "shorts", "trending", "funny", "viral", "satisfying", "challenge",
-        "fyp", "for you", "memes", "life hacks", "reaction", "vlog", "prank",
-        "#memes", "#comedy", "#brainrot", "#addicting", "#bingeworthy", "#cantstopwatching", "#loop"
-    ];
+    // Function to extract video data and metadata
+    function extractVideoData() {
+        const videoData = [];
 
-    const productiveTags = [
-        "tutorial", "how to", "learning", "educational", "self-improvement",
-        "coding", "tech", "motivation", "science", "documentary", "study",
-        "#anime", "#manga", "#animation", "#music", "#gaming"
-    ];
+        // Find all <a> tags that contain "watch?v" in their href
+        const videoLinks = document.querySelectorAll('a[href*="watch?v="]');
 
-    let blockedVideos = [];
-    let alertShown = false;
+        // Loop through each link and extract the href and title
+        videoLinks.forEach(link => {
+            const videoUrl = link.href;
+            let videoTitle = link.getAttribute('title') || link.textContent.trim();
 
-    function checkBrainRotReasons(title, description, tags, videoLength) {
-        let reasons = [];
-        const content = `${title} ${description} ${tags.join(' ')}`.toLowerCase();
+            // Clean up the title by removing anything related to video length or other irrelevant text
+            videoTitle = videoTitle.replace(/(\d{1,2}[:]\d{2})|Now playing/g, '').trim();
 
-        brainRotTags.forEach(tag => {
-            if (content.includes(tag)) {
-                reasons.push(`Contains unproductive tag: "${tag}"`);
+            // Extract creator from the page (if on a video page)
+            const creator = getVideoCreator();
+
+            // If we have a valid video URL and title, push to the videoData array
+            if (videoUrl && videoTitle && creator) {
+                videoData.push({
+                    url: videoUrl,
+                    title: videoTitle,
+                    creator: creator
+                });
             }
         });
 
-        const videoMinutes = parseInt(videoLength.split(':')[0]) || 0;
-        if (videoMinutes < 2) {
-            reasons.push(`Video is too short (${videoLength})`);
-        }
-
-        productiveTags.forEach(tag => {
-            if (content.includes(tag)) {
-                reasons = [];  // Clear reasons if productive tag is found
-            }
-        });
-
-        return reasons;
-    }
-
-    function removeBrainRotVideos() {
-        const videos = document.querySelectorAll('ytd-rich-item-renderer, ytd-grid-video-renderer, ytd-video-renderer');
-
-        console.log(`Found ${videos.length} videos on the page.`);
-
-        videos.forEach(video => {
-            const titleElement = video.querySelector('#video-title');
-            const descriptionElement = video.querySelector('#description-text');
-            const tagsElement = video.querySelector('#tags');
-            const durationElement = video.querySelector('.ytd-thumbnail-overlay-time-status-renderer');
-
-            const title = titleElement ? titleElement.innerText.trim() : '';
-            const description = descriptionElement ? descriptionElement.innerText.trim() : '';
-            const tags = tagsElement ? Array.from(tagsElement.querySelectorAll('a')).map(tag => tag.innerText.trim()) : [];
-            const videoLength = durationElement ? durationElement.innerText.trim() : '0:00';
-
-            console.log(`Checking video: ${title}, Length: ${videoLength}`);
-
-            const reasons = checkBrainRotReasons(title, description, tags, videoLength);
-
-            if (reasons.length > 0) {
-                video.style.display = 'none';  // Hide the video
-                if (!blockedVideos.some(v => v.title === title)) {
-                    blockedVideos.push({ title: title, reasons: reasons });
-                    console.log(`Blocked: ${title}, Reasons: ${reasons.join(', ')}`);
-                }
-            }
-        });
-
-        if (blockedVideos.length > 0 && !alertShown) {
-            alertShown = true;
-            showAlert();
-        }
-
-        // remove empty spaces due to mass video deleting
-        removeEmptySpaces();
-    }
-
-    function showAlert() {
-        const blockedDetails = blockedVideos.map(video =>
-            `Title: ${video.title}\nReasons: ${video.reasons.join(', ')}`
-        ).join('\n\n');
-
-        if (blockedDetails) {
-            alert('Blocked Unproductive Videos:\n\n' + blockedDetails);
-        }
-
-        blockedVideos = [];
-    }
-
-    function removeYouTubeShorts() {
-        const shortsSelectors = [
-            'a[href*="/shorts/"]',
-            'ytd-grid-video-renderer[is-shorts]',
-            'ytd-reel-shelf-renderer',
-        ];
-
-        shortsSelectors.forEach(selector => {
-            const shortsElements = document.querySelectorAll(selector);
-            shortsElements.forEach(element => {
-                console.log('Removed a YouTube Shorts element:', element);
-                element.remove(); // Remove the shorts element
-            });
-        });
-    }
-
-    function removeShortsTitleSpan() {
-        const shortsTitleElements = document.querySelectorAll('span#title.style-scope.ytd-rich-shelf-renderer');
-        shortsTitleElements.forEach(element => {
-            console.log('Removed a Shorts title span:', element);
-            element.remove();
-        });
-    }
-
-    // Function to remove specified div elements
-    function removeSpecifiedDivs() {
-        const divsToRemove = document.querySelectorAll('div.yt-spec-touch-feedback-shape__fill');
-        divsToRemove.forEach(div => {
-            console.log('Removed specified div:', div);
-            div.remove();
-        });
-    }
-
-    // function to remove empty spaces by rearranging the layout
-    function removeEmptySpaces() {
-        const videoContainers = document.querySelectorAll('ytd-rich-item-renderer, ytd-grid-video-renderer, ytd-video-renderer');
-
-        videoContainers.forEach(video => {
-            if (video.style.display === 'none') {
-                video.remove();  // completely remove the video element of each blocked vid
-            }
-        });
-
-        const remainingVideos = document.querySelectorAll('ytd-rich-item-renderer:not([style*="display: none"]), ytd-grid-video-renderer:not([style*="display: none"]), ytd-video-renderer:not([style*="display: none"])');
-
-        if (remainingVideos.length > 0) {
-            remainingVideos.forEach(video => {
-                // 
-                video.style.marginBottom = '0';  
-            });
+        // If video data is found, download as CSV
+        if (videoData.length > 0) {
+            downloadCSV(videoData);
+        } else {
+            console.log("No video data found.");
         }
     }
 
-    // Run the script when the page loads
-    window.addEventListener('load', () => {
-        removeBrainRotVideos();  // initial check
-        removeYouTubeShorts();   // remove Shorts
-        removeShortsTitleSpan(); // remove Shorts n title
-        removeSpecifiedDivs();    // remove specified divs of shorts and show more buttons
+    // Function to extract the creator's name from the page
+    function getVideoCreator() {
+        const creator = document.querySelector("#upload-info a")?.innerText || '';
+        return creator;
+    }
 
-        const observer = new MutationObserver(() => {
-            removeBrainRotVideos();
-            removeYouTubeShorts();
-            removeShortsTitleSpan();
-            removeSpecifiedDivs();
-        });
+    // Function to download the data as CSV
+    function downloadCSV(data) {
+        // Start with the header row
+        const csvContent = 'Video URL, Video Title, Creator\n' + data.map(item => {
+            return `"${item.url}","${item.title}","${item.creator.replace(/"/g, '""')}"`;
+        }).join('\n');
 
-        observer.observe(document.body, { childList: true, subtree: true });
+        // Create a Blob with CSV data
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+        // Create a download link and trigger the download
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'youtube_video_metadata.csv';
+
+        // Append the link to the DOM and trigger a click to download the CSV
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // Wait until the page has fully loaded before executing the extraction
+    window.addEventListener('load', function() {
+        setTimeout(extractVideoData, 2000);  // Wait for 2 seconds to ensure content is fully loaded
     });
 })();
