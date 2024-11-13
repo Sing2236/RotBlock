@@ -1,0 +1,17 @@
+ body {
+	text-align: center;
+}
+
+#rotBlockIcon {
+   width: 100px;
+   margin: 5px;
+}
+
+button {
+   margin: 5px;
+   outline: none;
+}
+
+button:hover {
+   outline: #80deea dotted thick;
+}
