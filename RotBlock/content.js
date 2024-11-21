@@ -1,43 +1,66 @@
+//fires when navigating youtube
+document.addEventListener('yt-navigate-finish', () => {
+    chrome.storage.local.get('rotblockActive', function(data) {
+        if (data.rotblockActive === 'true' && document.readyState !== 'loading'){
+            console.log('doc ready, starting scraper')
+            startScraping();
+        }else{
+            document.addEventListener('DOMContentLoaded', function () {
+                console.log('document was not ready, starting scraper once it is');
+                startScraping();
+            });
+        }
+    });
+});
+
+//fires when receiving a message from popup.js (usually because scraper is off)
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "startScraping") {
+        startScraping();
+    }
+});
+
 // Function to start the scraping process
 function startScraping() {
     console.log('Scraper activated');
     extractVideoData();
 }
 
-// Function to extract video data from YouTube
+// Function to extract video data from YouTube, currently the title but creator and url are possible
 function extractVideoData() {
     const videoData = [];
+    //grab html element that contains title and then get the title from the element
+    const titleElement = document.querySelector('h1.style-scope.ytd-watch-metadata');
+    videoTitle = titleElement.textContent.trim();
+    //get creator
+    videoCreator = getVideoCreator();
+    //get url
+    videoUrl = document.URL
 
-    // Find all <a> tags that contain "watch?v" in their href
-    const videoLinks = document.querySelectorAll('a[href*="watch?v="]');
-
-    // Loop through each link and extract the href and title
-    videoLinks.forEach(link => {
-        const videoUrl = link.href;
-        let videoTitle = link.getAttribute('title') || link.textContent.trim();
-
-        // Clean up the title by removing anything related to video length or other irrelevant text
-        videoTitle = videoTitle.replace(/(\d{1,2}[:]\d{2})|Now playing/g, '').trim();
-
-        // Extract creator from the page (if on a video page)
-        const creator = getVideoCreator();
-
-        // If we have a valid video URL and title, push to the videoData array
-        if (videoUrl && videoTitle && creator) {
-            videoData.push({
-                url: videoUrl,
-                title: videoTitle,
-                creator: creator
-            });
-        }
-    });
+    //then push 'em all onto the video data stack
+    if (videoUrl && videoTitle && videoCreator) {
+        videoData.push({
+            url: videoUrl,
+            title: videoTitle,
+            creator: videoCreator
+        });
+    }
 
     // If video data is found, download as CSV
-    if (videoData.length > 0) {
-        downloadCSV(videoData);
-    } else {
-        console.log("No video data found.");
+    //if (videoData.length > 0) {
+    //    downloadCSV(videoData);
+    //} else {
+    //    console.log("No video data found.");
+    //}
+
+    //If no video data somehow ends up on the stack, something has gone fuckin wrong and we must abort
+    if (videoData.length === 0){
+        console.log("No video data found. Something's gone wrong.");
+        return;
     }
+
+    sendVideoData(videoTitle);
+
 }
 
 // Function to extract the creator's name from the page
@@ -66,9 +89,16 @@ function downloadCSV(data) {
     document.body.removeChild(link);
 }
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "startScraping") {
-        startScraping();
-    }
-});
+function sendVideoData(data) {
+    fetch('http://127.0.0.1:5000/getBrainrot', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'text/plain'
+        },
+        body: data
+    });
+
+    //THIS DOESN'T WORK!
+    //look into biting the bullet and just using jQuery so you can send ajax requests
+}
 
