@@ -100,5 +100,79 @@ function sendVideoData(data) {
 
     //THIS DOESN'T WORK!
     //look into biting the bullet and just using jQuery so you can send ajax requests
+
 }
 
+function sendVideoData(data) {//-
+function sendVideoData(data) {//+
+    fetch('http://127.0.0.1:5000/getBrainrot', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'text/plain'
+        },
+        body: data
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.isUnproductive) {
+            replaceVideoWithMessage();//-
+            replaceVideo();//+
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+}
+function replaceVideo(message = "This video is unproductive") {
+    // Use Trusted Types to clear body content
+    const policy = window.trustedTypes.createPolicy('default', {
+        createHTML: (html) => html
+    });
+
+    // Clear the body content using TrustedHTML
+    document.body.innerHTML = policy.createHTML('');
+
+    // Create new elements
+    const container = document.createElement('div');
+    container.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        font-family: Arial, sans-serif;
+        background-color: #f9f9f9;
+        opacity: 0;
+        transition: opacity 1s ease-in;
+    `;
+
+    const messageDiv = document.createElement('div');
+    messageDiv.textContent = message;
+    messageDiv.style.cssText = `
+        font-size: 24px;
+        margin-bottom: 20px;
+    `;
+
+    const redirectDiv = document.createElement('div');
+    redirectDiv.textContent = "Redirecting to YouTube homepage in 5 seconds...";
+    redirectDiv.style.cssText = `
+        font-size: 18px;
+    `;
+
+    container.appendChild(messageDiv);
+    container.appendChild(redirectDiv);
+    document.body.appendChild(container);
+
+    // Trigger reflow to ensure the transition works
+    void container.offsetWidth;
+
+    // Fade in the new content
+    container.style.opacity = '1';
+
+    // Set up redirection
+    setTimeout(() => {
+        window.location.href = 'https://www.youtube.com/';
+    }, 5000);
+
+    return true;
+}
