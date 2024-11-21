@@ -1,12 +1,12 @@
 //fires when navigating youtube
 document.addEventListener('yt-navigate-finish', () => {
     chrome.storage.local.get('rotblockActive', function(data) {
-        if (data.rotblockActive === 'true' && document.readyState !== 'loading'){
-            console.log('doc ready, starting scraper')
+        if (data.rotblockActive === 'true' && document.readyState === 'complete'){
+            console.log('doc ready, starting scraper - if nothing happened thats cause youre not on a yt vid')
             startScraping();
         }else{
             document.addEventListener('DOMContentLoaded', function () {
-                console.log('document was not ready, starting scraper once it is');
+                console.log('document was not ready, starting scraper once it is - if nothing happened thats cause youre not on a yt vid ');
                 startScraping();
             });
         }
@@ -20,22 +20,42 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 });
 
+//function to sanitize input
+function sanitize(string) {
+    const map = {
+        '&': 'amp',
+        '<': 'lt',
+        '>': 'gt',
+        '"': 'quot',
+        "'": 'squot',
+        "/": 'slash',
+    };
+    const reg = /[&<>"'/]/ig;
+    return string.replace(reg, (match)=>(map[match]));
+  }
+
+  
+
 // Function to start the scraping process
 function startScraping() {
-    console.log('Scraper activated');
-    extractVideoData();
+    if (document.URL.match(/.:\/\/www\.youtube\.com\/watch./i) || document.URL.match(/.:\/\/www\.youtube\.com\/shorts./i)){
+        console.log('Scraper activated');
+        extractVideoData();
+    }
+    
 }
 
 // Function to extract video data from YouTube, currently the title but creator and url are possible
 function extractVideoData() {
     const videoData = [];
+    //console.log(retry)
     //grab html element that contains title and then get the title from the element
     const titleElement = document.querySelector('h1.style-scope.ytd-watch-metadata');
     videoTitle = titleElement.textContent.trim();
     //get creator
     videoCreator = getVideoCreator();
     //get url
-    videoUrl = document.URL
+    videoUrl = document.URL ;
 
     //then push 'em all onto the video data stack
     if (videoUrl && videoTitle && videoCreator) {
@@ -45,13 +65,24 @@ function extractVideoData() {
             creator: videoCreator
         });
     }
+    else {
+        console.log('Failed to grab all required metadata, retrying.');
+        if (document.URL.match(/.:\/\/www\.youtube\.com\/watch./i) || document.URL.match(/.:\/\/www\.youtube\.com\/shorts./i)) {
+            location.reload();
+        }
+    }
 
-    // If video data is found, download as CSV
+
+    // If video data is found, download as CSV (bit of legacy code for debugging)
     //if (videoData.length > 0) {
     //    downloadCSV(videoData);
     //} else {
     //    console.log("No video data found.");
     //}
+    
+    //this bit of code is redundant but should catch all cases where the else case
+    //for above when nothing gets pushed to the stack just somehow doesn't
+    //activate.
 
     //If no video data somehow ends up on the stack, something has gone fuckin wrong and we must abort
     if (videoData.length === 0){
@@ -90,15 +121,89 @@ function downloadCSV(data) {
 }
 
 function sendVideoData(data) {
+    //sends title data
+    console.log(data);
+    input = sanitize(data);
+    console.log(input)
     fetch('http://127.0.0.1:5000/getBrainrot', {
         method: 'POST',
         headers: {
-            'Content-Type': 'text/plain'
+          'Content-Type': 'application/x-www-form-urlencoded'
         },
-        body: data
-    });
-
-    //THIS DOESN'T WORK!
-    //look into biting the bullet and just using jQuery so you can send ajax requests
+        body: 'text='+input
+        //gets response and gets back the json, then we print out the json
+      }).then((response) => response.json()).then((responseJson) => {
+        brainrotParse(responseJson.result);
+      });
 }
 
+function brainrotParse(data) {
+    brainrot = data.Brainrot ;
+    nonBrainrot = data.NonBrainrot ;
+    console.log(brainrot, nonBrainrot);
+    const threshold = .70 ;
+    //if brainrot value is bigger than brainrot then check to see if brainrot value
+    //passes threshold. otherwise check nonbrainrot value against threshold
+    if (brainrot > nonBrainrot){
+        if (brainrot >= threshold){
+            console.log(1) ;
+            replaceVideo() ;
+        }
+    } else {
+        console.log(0) ;
+    }
+}
+
+function replaceVideo(message = "This video is unproductive") {
+    // Use Trusted Types to clear body content
+    const policy = window.trustedTypes.createPolicy('default', {
+        createHTML: (html) => html
+    });
+
+    // Clear the body content using TrustedHTML
+    document.body.innerHTML = policy.createHTML('');
+
+    // Create new elements
+    const container = document.createElement('div');
+    container.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        font-family: Arial, sans-serif;
+        background-color: #f9f9f9;
+        opacity: 0;
+        transition: opacity 1s ease-in;
+    `;
+
+    const messageDiv = document.createElement('div');
+    messageDiv.textContent = message;
+    messageDiv.style.cssText = `
+        font-size: 24px;
+        margin-bottom: 20px;
+    `;
+
+    const redirectDiv = document.createElement('div');
+    redirectDiv.textContent = "Redirecting to YouTube homepage in 5 seconds...";
+    redirectDiv.style.cssText = `
+        font-size: 18px;
+    `;
+
+    container.appendChild(messageDiv);
+    container.appendChild(redirectDiv);
+    document.body.appendChild(container);
+
+    // Trigger reflow to ensure the transition works
+    void container.offsetWidth;
+
+    // Fade in the new content
+    container.style.opacity = '1';
+
+    // Set up redirection
+    setTimeout(() => {
+        window.location.href = 'https://www.youtube.com/';
+    }, 5000);
+
+    return true;
+}
