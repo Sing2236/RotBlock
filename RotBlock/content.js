@@ -16,14 +16,9 @@ vidPlayer = grabVideoPlayer();
 //fires when navigating youtube
 document.addEventListener('yt-navigate-finish', () => {
     chrome.storage.local.get('rotblockActive', function(data) {
-        if (data.rotblockActive === 'true' && document.readyState === 'complete'){
-            console.log('doc ready, starting scraper - if nothing happened thats cause youre not on a yt vid')
+        if (data.rotblockActive === 'true'){
+            console.log('starting scraper - if nothing happened thats cause youre not on a yt vid')
             startScraping();
-        }else{
-            document.addEventListener('DOMContentLoaded', function () {
-                console.log('document was not ready, starting scraper once it is - if nothing happened thats cause youre not on a yt vid ');
-                startScraping();
-            });
         }
     });
 });
@@ -53,12 +48,13 @@ function sanitize(string) {
 function startScraping() {
     //uses regex to check if we're on a yt vid or short. then grabs the player
     if (document.URL.match(/.:\/\/www\.youtube\.com\/watch./i) || document.URL.match(/.:\/\/www\.youtube\.com\/shorts./i)){
-        console.log('Scraper activated');
         vidPlayer = grabVideoPlayer();
-        vidPlayer.addEventListener('loadeddata', function() {
-            vidPlayer.pause();
-            extractVideoData();
-        }, false);
+        console.log('grabbed video player') ;
+        vidPlayer.load()
+        console.log('Scraper activated');
+        vidPlayer.pause();
+        extractVideoData();
+        
     }
     
 }
@@ -111,6 +107,7 @@ function extractVideoData() {
         return;
     }
 
+    console.log(videoTitle); 
     sendVideoData(videoTitle);
 
 }
@@ -182,7 +179,7 @@ function brainrotParse(data) {
     }
 }
 
-function replaceVideo(message = "This video is unproductive") {
+function replaceVideo(message = "This video may potentially be inappropriate") {
     // Get the YouTube video player element
     const player = document.getElementById("player");
     if (!player) {
