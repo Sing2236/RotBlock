@@ -183,13 +183,18 @@ function brainrotParse(data) {
 }
 
 function replaceVideo(message = "This video is unproductive") {
-    // Use Trusted Types to clear body content
-    const policy = window.trustedTypes.createPolicy('default', {
+    // Get the YouTube video player element
+    const player = document.getElementById("player");
+    if (!player) {
+        console.error("Player element not found.");
+        return false;
+    }
+
+    // Clear the player content using TrustedHTML
+    const policy = window.trustedTypes?.createPolicy('default', {
         createHTML: (html) => html
     });
-
-    // Clear the body content using TrustedHTML
-    document.body.innerHTML = policy.createHTML('');
+    player.innerHTML = policy ? policy.createHTML('') : '';
 
     // Create new elements
     const container = document.createElement('div');
@@ -198,7 +203,7 @@ function replaceVideo(message = "This video is unproductive") {
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        height: 100vh;
+        height: 100%;
         font-family: Arial, sans-serif;
         background-color: #f9f9f9;
         opacity: 0;
@@ -220,7 +225,7 @@ function replaceVideo(message = "This video is unproductive") {
 
     container.appendChild(messageDiv);
     container.appendChild(redirectDiv);
-    document.body.appendChild(container);
+    player.appendChild(container);
 
     // Trigger reflow to ensure the transition works
     void container.offsetWidth;
