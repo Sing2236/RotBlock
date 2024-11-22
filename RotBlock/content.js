@@ -1,3 +1,18 @@
+//gets video player element so it pauses before evaluation
+function grabVideoPlayer() {
+    if (document.URL.match(/.:\/\/www\.youtube\.com\/watch./i) || document.URL.match(/.:\/\/www\.youtube\.com\/shorts./i)){
+        player = document.querySelector("video") ; 
+        return player ;
+    }
+    else{
+        console.log('couldnt grab, returning null') ;
+        return null ;
+    }
+}
+
+//called here for global variable
+vidPlayer = grabVideoPlayer();
+
 //fires when navigating youtube
 document.addEventListener('yt-navigate-finish', () => {
     chrome.storage.local.get('rotblockActive', function(data) {
@@ -34,19 +49,25 @@ function sanitize(string) {
     return string.replace(reg, (match)=>(map[match]));
   }
 
-  
-
 // Function to start the scraping process
 function startScraping() {
+    //uses regex to check if we're on a yt vid or short. then grabs the player
     if (document.URL.match(/.:\/\/www\.youtube\.com\/watch./i) || document.URL.match(/.:\/\/www\.youtube\.com\/shorts./i)){
         console.log('Scraper activated');
-        extractVideoData();
+        vidPlayer = grabVideoPlayer();
+        vidPlayer.addEventListener('loadeddata', function() {
+            vidPlayer.pause();
+            extractVideoData();
+        }, false);
     }
     
 }
 
 // Function to extract video data from YouTube, currently the title but creator and url are possible
 function extractVideoData() {
+    //sometimes it doesn't pause when startScraping is called so it's here for redundancy
+    videoTitle = null;
+    vidPlayer.pause();
     const videoData = [];
     //console.log(retry)
     //grab html element that contains title and then get the title from the element
@@ -122,9 +143,12 @@ function downloadCSV(data) {
 
 function sendVideoData(data) {
     //sends title data
-    console.log(data);
-    input = sanitize(data);
-    console.log(input)
+    //console.log(data);
+    input = sanitize(data); //have to sanitize input or else it'll cause errors w/ the ai's evaluation
+    //console.log(input)
+
+    //sends title to ai and gets back brainrot score
+    //catch element is there to unpause the video incase ai is down
     fetch('http://127.0.0.1:5000/getBrainrot', {
         method: 'POST',
         headers: {
@@ -134,13 +158,16 @@ function sendVideoData(data) {
         //gets response and gets back the json, then we print out the json
       }).then((response) => response.json()).then((responseJson) => {
         brainrotParse(responseJson.result);
+      }).catch((error) => {
+        console.log(error);
+        vidPlayer.play();
       });
 }
 
 function brainrotParse(data) {
     brainrot = data.Brainrot ;
     nonBrainrot = data.NonBrainrot ;
-    console.log(brainrot, nonBrainrot);
+    //console.log(brainrot, nonBrainrot);
     const threshold = .70 ;
     //if brainrot value is bigger than brainrot then check to see if brainrot value
     //passes threshold. otherwise check nonbrainrot value against threshold
@@ -151,6 +178,7 @@ function brainrotParse(data) {
         }
     } else {
         console.log(0) ;
+        vidPlayer.play();
     }
 }
 
